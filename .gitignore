@@ -2,3 +2,7 @@
 __pycache__/
 tmp/
 log*/
+sample_sge_jobs/
+test_subject/
+*.xml
+*.json

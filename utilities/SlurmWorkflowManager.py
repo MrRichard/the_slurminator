@@ -1,4 +1,5 @@
 import os
+import secrets
 
 class SlurmWorkflowManager:
     """
@@ -33,8 +34,19 @@ class SlurmWorkflowManager:
         self.logs_dir = logs_dir
         if not os.path.exists(self.logs_dir):
             os.makedirs(self.logs_dir)
+            
+    def _generate_unique_job_id(self):
+        """
+        Generates a unique 7-character HEX string for job identification.
 
-    def add_job(self, job_type: str, script_path: str, params: dict, dependencies: list = []):
+        Returns:
+        --------
+        str
+            A unique 7-character HEX string.
+        """
+        return secrets.token_hex(3)  # 3 bytes = 6 hex characters, plus 1 for uniqueness
+
+    def add_job(self, job_name:str, job_type: str, script_path: str, params: dict, dependencies: list = []):
         """
         Adds a job to the workflow.
 
@@ -49,9 +61,9 @@ class SlurmWorkflowManager:
         dependencies : list, optional
             A list of job IDs that this job depends on (default is an empty list).
         """
-        job_id = len(self.jobs) + 1
+        job_id = self._generate_unique_job_id()
         job = {
-            'id': job_id,
+            'id': f"{job_name}_{job_id}",
             'type': job_type,
             'script_path': script_path,
             'params': params,
@@ -61,6 +73,8 @@ class SlurmWorkflowManager:
         }
         self.jobs.append(job)
         self.workflow.append(job_id)
+        
+        return job['id']
 
     def set_slurm_params(self, job_id: int, params: dict):
         """
@@ -153,18 +167,28 @@ class SlurmWorkflowManager:
         str
             The content of the SLURM batch file.
         """
+        
         params = job['params']
         log_file = f"{self.logs_dir}/job_{job['id']}.log"
         lines = [
             f"#!/bin/bash",
-            f"#SBATCH --job-name=job_{job['id']}",
+            f"#SBATCH --job-name={job['id']}",
             f"#SBATCH --cpus-per-task={params.get('cpus', 1)}",
             f"#SBATCH --mem={params.get('mem', '1G')}",
             f"#SBATCH --time={params.get('runtime', '1:00:00')}",
-            f"#SBATCH --partition={params.get('partition', 'standard')}",
+            f"#SBATCH --partition={params.get('partition', 'defq')}",
             f"#SBATCH --output={log_file}",
             f"#SBATCH --error={log_file}"
         ]
+        
+        if job['dependencies']:
+            for dep in job['dependencies']:
+                if dep:
+                    if isinstance(dep, list):
+                        dependency_str = ":".join(dep)
+                    else:
+                        dependency_str = dep
+                    lines.append(f"#SBATCH --dependency=afterok:{dependency_str}")
 
         if 'env_vars' in params:
             for var, value in params['env_vars'].items():
@@ -173,10 +197,6 @@ class SlurmWorkflowManager:
         if job['modules']:
             for module in job['modules']:
                 lines.append(f"module load {module}")
-
-        if job['dependencies']:
-            dependency_str = ":".join([f"job_{dep}" for dep in job['dependencies']])
-            lines.append(f"#SBATCH --dependency=afterok:{dependency_str}")
 
         if job['type'] == 'singularity' and job['singularity']:
             singularity_cmd = f"singularity exec --bind {','.join(job['singularity']['bind_paths'])} {job['singularity']['container']} {job['script_path']}"
