@@ -1,6 +1,5 @@
 import os
 
-
 class SlurmWorkflowManager:
     """
     A class to manage SLURM workflow jobs.
@@ -182,6 +181,15 @@ class SlurmWorkflowManager:
         if job['type'] == 'singularity' and job['singularity']:
             singularity_cmd = f"singularity exec --bind {','.join(job['singularity']['bind_paths'])} {job['singularity']['container']} {job['script_path']}"
             lines.append(singularity_cmd)
+        elif job['type'] == 'matlab':
+            matlab_cmd = f"matlab -nodisplay -nosplash -r \"{job['script_path']}('target_path', options_struct); exit;\""
+            lines.append(matlab_cmd)
+        elif job['type'] == 'bash':
+            bash_cmd = f"bash {job['script_path']}"
+            lines.append(bash_cmd)
+        elif job['type'] == 'python':
+            python_cmd = f"python3 {job['script_path']} command_arg1 arg2 arg3"
+            lines.append(python_cmd)
         else:
             lines.append(f"{job['script_path']}")
 

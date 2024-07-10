@@ -1,4 +1,4 @@
-from CreateSlurmJob import SlurmWorkflowManager
+from utilities.SlurmWorkflowManager import SlurmWorkflowManager
 
 # Initialize the workflow manager
 workflow_manager = SlurmWorkflowManager("./tmp/")
